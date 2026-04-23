@@ -1,0 +1,38 @@
+{
+  "name": "opencode-claude-bridge",
+  "version": "0.1.0",
+  "description": "OpenCode plugin to resume Claude Code sessions inside OpenCode without losing context.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "claude",
+    "claude-code",
+    "resume"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/etendosoftware/opencode-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/etendosoftware/opencode-plugin/issues"
+  },
+  "homepage": "https://github.com/etendosoftware/opencode-plugin#readme",
+  "license": "MIT",
+  "author": "Etendo Software",
+  "dependencies": {
+    "@opencode-ai/plugin": "1.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.9",
+    "typescript": "5.8.2"
+  }
+}

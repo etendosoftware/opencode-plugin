@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
+
+# Plugin runtime state (generated per OpenCode session)
+.opencode/.claude-bridge-state/
+
+# OS / editor junk
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
