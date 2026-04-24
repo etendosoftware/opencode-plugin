@@ -71,15 +71,15 @@ Después de ejecutar el comando, OpenCode te muestra cuántos mensajes cargó y 
 
 ## Qué se importa
 
-Del transcript de Claude el plugin saca:
+El plugin arma un bloque de contexto con tres partes:
 
-- el objetivo original de la sesión
-- los últimos intercambios (mensajes + herramientas que usó Claude y qué devolvieron)
-- los archivos que se tocaron, los comandos que se corrieron
-- el idioma en el que venían hablando
-- metadatos de contexto (rama git, directorio, etc.)
+**Metadatos de la sesión** — proyecto, rama git, idioma detectado, cantidad total de mensajes.
 
-Todo eso se formatea como una conversación en curso y queda asociado a la sesión de OpenCode. Si cerrás y volvés a abrir, el contexto sigue ahí (persiste en disco dentro de `.opencode/`).
+**Resumen de lo que pasó antes** — si la sesión tiene más de 40 mensajes, el plugin usa el modelo que tenés activo en OpenCode para generar un resumen estructurado (objetivo, decisiones clave, archivos tocados, estado al final de esa parte, hilos abiertos). Se cachea en disco: si importás la misma sesión de nuevo, no se regenera.
+
+**Los últimos 40 mensajes verbatim** — incluyendo los comandos que corrió Claude y qué devolvieron, para que el modelo vea exactamente dónde quedaron.
+
+Todo persiste en disco dentro de `.opencode/`. Si cerrás OpenCode y lo reabrís, el contexto sigue disponible sin tener que importar de nuevo.
 
 ## Lo que no hace
 
@@ -89,11 +89,5 @@ Todo eso se formatea como una conversación en curso y queda asociado a la sesi�
 
 ## Costo
 
-Cada turno en la sesión de OpenCode incluye el contexto importado (~5-7K tokens). Con prompt caching habilitado, el costo real después del primer turno es bajo. Sin caching, el consumo es lineal al tamaño del historial importado por cada mensaje.
-
-## Pendientes conocidos
-
-- Resumen denso generado por LLM en vez de truncado (ahora corta después de 40 mensajes)
-- Sincronización en vivo si Claude sigue escribiendo en paralelo
-- Auto-import al abrir una sesión nueva en un proyecto con historia reciente de Claude
+El contexto importado pesa ~5–7K tokens. Con prompt caching habilitado (activo por defecto en OpenCode), el costo real después del primer turno es mínimo — el bloque se cachea y los turnos siguientes solo pagan el cache read. El resumen se genera una sola vez por sesión y se reutiliza.
 
