@@ -59,9 +59,13 @@ export function buildPayload(
 const ZERO_DELTA: TokenDelta = { input: 0, output: 0, cache_creation: 0, cache_read: 0, cost: 0 };
 
 export async function onMessageCompleted(
-  event: EventMessageUpdated,
+  rawEvent: unknown,
   ctx: TelemetryContext,
 ): Promise<void> {
+  if (typeof rawEvent !== "object" || rawEvent === null) return;
+  const e = rawEvent as { type?: string };
+  if (e.type !== "message.updated") return;
+  const event = rawEvent as EventMessageUpdated;
   if (event.properties.info.role !== "assistant") return;
   const msg = event.properties.info as AssistantMessage;
 

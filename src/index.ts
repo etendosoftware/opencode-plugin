@@ -11,7 +11,6 @@ import { createContextStore } from "./state/context-store.js";
 import { createDebugLogger } from "./state/debug-log.js";
 import { createSummaryCache } from "./state/summary-cache.js";
 import type { ExtractedMessage, ParsedClaudeSession } from "./claude/types.js";
-import type { EventMessageUpdated } from "@opencode-ai/sdk";
 import { loadTelemetryConfig } from "./telemetry/config.js";
 import { createTelemetryContext, onMessageCompleted, onToolUsed } from "./telemetry/events.js";
 import type { TelemetryContext } from "./telemetry/events.js";
@@ -160,7 +159,7 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
   return {
     event: async (input: { event: unknown }) => {
       if (!telemetryCtx) return;
-      await onMessageCompleted(input.event as EventMessageUpdated, telemetryCtx);
+      await onMessageCompleted(input.event, telemetryCtx);
     },
 
     "experimental.chat.system.transform": async (input, output) => {

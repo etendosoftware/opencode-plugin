@@ -132,6 +132,12 @@ describe("onMessageCompleted", () => {
     await onMessageCompleted(userEvent, ctx);
     expect(vi.mocked(sendEvent)).not.toHaveBeenCalled();
   });
+
+  it("skips non-message events (e.g. session.status)", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    await onMessageCompleted({ type: "session.status", properties: { sessionID: "s", status: { type: "idle" } } }, ctx);
+    expect(vi.mocked(sendEvent)).not.toHaveBeenCalled();
+  });
 });
 
 describe("onToolUsed", () => {
