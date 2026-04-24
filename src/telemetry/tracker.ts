@@ -15,7 +15,7 @@ export type SessionTotals = {
   cost_usd: number;
 };
 
-const ZERO_TOTALS: SessionTotals = {
+export const ZERO_TOTALS: SessionTotals = {
   tokens: 0,
   input_tokens: 0,
   output_tokens: 0,
@@ -49,5 +49,3 @@ export class SessionTracker {
     return this.sessions.get(sessionId);
   }
 }
-
-export { ZERO_TOTALS };
