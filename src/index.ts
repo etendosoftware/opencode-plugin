@@ -180,8 +180,15 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
 
   return {
     event: async (input: { event: unknown }) => {
+      const ev = input.event as Record<string, unknown> | null | undefined;
+      const evType = (ev as { type?: string })?.type ?? "unknown";
+      debug.log("event.received", { type: evType, hasTelemetry: !!telemetryCtx });
       if (!telemetryCtx) return;
-      await onMessageCompleted(input.event, telemetryCtx);
+      try {
+        await onMessageCompleted(input.event, telemetryCtx);
+      } catch (err) {
+        debug.log("event.telemetry_error", { type: evType, error: err instanceof Error ? err.message : String(err) });
+      }
     },
 
     "experimental.chat.system.transform": async (input, output) => {
