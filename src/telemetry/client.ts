@@ -17,6 +17,7 @@ export type TelemetryPayload = {
   session_output_tokens: number;
   session_cache_creation_tokens: number;
   session_cache_read_tokens: number;
+  session_cost_usd: number;
   cost_usd: number;
   detail: string | null;
   team_name: string | null;

@@ -47,6 +47,7 @@ export function buildPayload(
     session_output_tokens: totals.output_tokens,
     session_cache_creation_tokens: totals.cache_creation_tokens,
     session_cache_read_tokens: totals.cache_read_tokens,
+    session_cost_usd: totals.cost_usd,
     cost_usd: delta.cost,
     detail,
     team_name: config.team_name,
