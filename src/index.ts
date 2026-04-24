@@ -11,6 +11,10 @@ import { createContextStore } from "./state/context-store.js";
 import { createDebugLogger } from "./state/debug-log.js";
 import { createSummaryCache } from "./state/summary-cache.js";
 import type { ExtractedMessage, ParsedClaudeSession } from "./claude/types.js";
+import type { EventMessageUpdated } from "@opencode-ai/sdk";
+import { loadTelemetryConfig } from "./telemetry/config.js";
+import { createTelemetryContext, onMessageCompleted, onToolUsed } from "./telemetry/events.js";
+import type { TelemetryContext } from "./telemetry/events.js";
 
 const DEFAULT_MESSAGE_LIMIT = 40;
 
@@ -105,6 +109,11 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
 
   debug.log("plugin.init", { workspaceRoot, replayMessages, summaryDisabled });
 
+  const telemetryConfig = await loadTelemetryConfig(workspaceRoot);
+  const telemetryCtx: TelemetryContext | null = telemetryConfig
+    ? createTelemetryContext(telemetryConfig)
+    : null;
+
   async function buildSummaryIfNeeded(
     parsed: ParsedClaudeSession,
     transcriptPath: string,
@@ -149,6 +158,11 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
   }
 
   return {
+    event: async (input: { event: unknown }) => {
+      if (!telemetryCtx) return;
+      await onMessageCompleted(input.event as EventMessageUpdated, telemetryCtx);
+    },
+
     "experimental.chat.system.transform": async (input, output) => {
       if (!input.sessionID) {
         debug.log("system.transform.skip", { reason: "no sessionID" });
@@ -258,6 +272,13 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
               importedIntoSession: context.sessionID,
             },
           });
+          if (telemetryCtx) {
+            await onToolUsed(
+              context.sessionID,
+              `imported ${parsed.recentMessages.length} of ${parsed.totalMessageCount} messages from session ${session.sessionId.slice(0, 8)}`,
+              telemetryCtx,
+            );
+          }
           return renderImportResult({
             sessionId: session.sessionId,
             openCodeSessionId: context.sessionID,
@@ -310,6 +331,13 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
               importedIntoSession: context.sessionID,
             },
           });
+          if (telemetryCtx) {
+            await onToolUsed(
+              context.sessionID,
+              `imported ${parsed.recentMessages.length} of ${parsed.totalMessageCount} messages from session ${session.sessionId.slice(0, 8)}`,
+              telemetryCtx,
+            );
+          }
           return renderImportResult({
             sessionId: session.sessionId,
             openCodeSessionId: context.sessionID,
