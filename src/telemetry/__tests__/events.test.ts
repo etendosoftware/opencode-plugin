@@ -1,8 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { modelFamily, buildPayload } from "../events.js";
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import { modelFamily, buildPayload, onMessageCompleted, onToolUsed, createTelemetryContext } from "../events.js";
 import { ZERO_TOTALS } from "../tracker.js";
 import type { TelemetryConfig } from "../config.js";
 import type { TokenDelta } from "../tracker.js";
+
+vi.mock("../client.js", () => ({
+  sendEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { sendEvent } from "../client.js";
 
 const mockConfig: TelemetryConfig = {
   token: "tok",
@@ -12,6 +18,31 @@ const mockConfig: TelemetryConfig = {
   team_name: "my-team",
   cwd: "/home/user/project",
 };
+
+function makeAssistantEvent(sessionID: string, modelID: string, tokens = { input: 100, output: 50, reasoning: 0, cache: { read: 5, write: 10 } }, cost = 0.002) {
+  return {
+    type: "message.updated" as const,
+    properties: {
+      sessionID,
+      info: {
+        role: "assistant" as const,
+        sessionID,
+        modelID,
+        id: "msg-1",
+        parentID: "msg-0",
+        providerID: "anthropic",
+        mode: "build",
+        path: { cwd: "/", root: "/" },
+        time: { created: Date.now() },
+        summary: false,
+        cost,
+        tokens,
+        finish: "stop",
+      },
+    },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+}
 
 describe("modelFamily", () => {
   it("detects opus", () => expect(modelFamily("claude-opus-4-7")).toBe("opus"));
@@ -62,5 +93,68 @@ describe("buildPayload", () => {
   it("includes detail when provided", () => {
     const p = buildPayload("opencode_tool_use", "sess-1", "", delta, ZERO_TOTALS, "imported 40 messages", mockConfig);
     expect(p.detail).toBe("imported 40 messages");
+  });
+});
+
+describe("onMessageCompleted", () => {
+  beforeEach(() => {
+    vi.mocked(sendEvent).mockClear();
+  });
+
+  it("fires session_start then turn on first message for a new session", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    await onMessageCompleted(makeAssistantEvent("sess-new", "claude-sonnet-4-6"), ctx);
+
+    expect(vi.mocked(sendEvent)).toHaveBeenCalledTimes(2);
+    const [firstCall, secondCall] = vi.mocked(sendEvent).mock.calls;
+    expect(firstCall[0].event).toBe("opencode_session_start");
+    expect(firstCall[0].tokens).toBe(0);
+    expect(secondCall[0].event).toBe("opencode_turn");
+    expect(secondCall[0].tokens).toBe(165); // 100+50+10+5
+  });
+
+  it("fires only turn (no session_start) on subsequent messages for the same session", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    await onMessageCompleted(makeAssistantEvent("sess-existing", "claude-sonnet-4-6"), ctx);
+    vi.mocked(sendEvent).mockClear();
+
+    await onMessageCompleted(makeAssistantEvent("sess-existing", "claude-sonnet-4-6"), ctx);
+    expect(vi.mocked(sendEvent)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendEvent).mock.calls[0][0].event).toBe("opencode_turn");
+  });
+
+  it("skips user messages (non-assistant role)", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    const userEvent = {
+      type: "message.updated" as const,
+      properties: { sessionID: "sess-1", info: { role: "user" } },
+    } as any;
+    await onMessageCompleted(userEvent, ctx);
+    expect(vi.mocked(sendEvent)).not.toHaveBeenCalled();
+  });
+});
+
+describe("onToolUsed", () => {
+  beforeEach(() => {
+    vi.mocked(sendEvent).mockClear();
+  });
+
+  it("fires opencode_tool_use with detail", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    await onToolUsed("sess-1", "imported 40 messages from session abc123", ctx);
+
+    expect(vi.mocked(sendEvent)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendEvent).mock.calls[0][0].event).toBe("opencode_tool_use");
+    expect(vi.mocked(sendEvent).mock.calls[0][0].detail).toBe("imported 40 messages from session abc123");
+  });
+
+  it("includes session totals if session was already tracked", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    await onMessageCompleted(makeAssistantEvent("sess-tracked", "claude-sonnet-4-6"), ctx);
+    vi.mocked(sendEvent).mockClear();
+
+    await onToolUsed("sess-tracked", "imported session", ctx);
+    const payload = vi.mocked(sendEvent).mock.calls[0][0];
+    expect(payload.session_tokens).toBeGreaterThan(0);
   });
 });

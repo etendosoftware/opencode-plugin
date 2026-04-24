@@ -1,3 +1,4 @@
+import type { EventMessageUpdated, AssistantMessage } from "@opencode-ai/sdk";
 import type { TelemetryConfig } from "./config.js";
 import type { TelemetryPayload } from "./client.js";
 import type { SessionTotals, TokenDelta } from "./tracker.js";
@@ -57,32 +58,15 @@ export function buildPayload(
 
 const ZERO_DELTA: TokenDelta = { input: 0, output: 0, cache_creation: 0, cache_read: 0, cost: 0 };
 
-type AssistantMessageLike = {
-  role: "assistant";
-  sessionID: string;
-  modelID: string;
-  tokens: { input: number; output: number; cache: { read: number; write: number } };
-  cost: number;
-};
-
 export async function onMessageCompleted(
-  event: { type: string; properties: { info: { role: string } } },
+  event: EventMessageUpdated,
   ctx: TelemetryContext,
 ): Promise<void> {
-  if (event.type !== "message.updated") return;
-  const raw = event.properties.info;
-  if (raw.role !== "assistant") return;
+  if (event.properties.info.role !== "assistant") return;
+  const msg = event.properties.info as AssistantMessage;
 
-  const msg = raw as unknown as AssistantMessageLike;
   const sessionId = msg.sessionID;
   const isNew = ctx.tracker.isNew(sessionId);
-
-  if (isNew) {
-    await sendEvent(
-      buildPayload("opencode_session_start", sessionId, msg.modelID, ZERO_DELTA, { ...ZERO_TOTALS }, null, ctx.config),
-      ctx.config,
-    );
-  }
 
   const delta: TokenDelta = {
     input: msg.tokens.input,
@@ -92,7 +76,15 @@ export async function onMessageCompleted(
     cost: msg.cost ?? 0,
   };
 
+  // Register session synchronously before any async call to prevent double session_start
   const totals = ctx.tracker.add(sessionId, delta);
+
+  if (isNew) {
+    await sendEvent(
+      buildPayload("opencode_session_start", sessionId, msg.modelID, ZERO_DELTA, { ...ZERO_TOTALS }, null, ctx.config),
+      ctx.config,
+    );
+  }
 
   await sendEvent(
     buildPayload("opencode_turn", sessionId, msg.modelID, delta, totals, null, ctx.config),
@@ -101,7 +93,6 @@ export async function onMessageCompleted(
 }
 
 export async function onToolUsed(
-  toolName: string,
   sessionId: string,
   detail: string,
   ctx: TelemetryContext,
