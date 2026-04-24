@@ -114,8 +114,8 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
     : null;
 
   if (telemetryCtx) {
-    try {
-      const result = await pluginInput.client.provider.list();
+    // Fire-and-forget: don't block plugin init waiting for the provider list
+    pluginInput.client.provider.list().then((result) => {
       const providers = (result as { data?: { all?: unknown[] } }).data?.all ?? [];
       for (const provider of providers as Array<{ models?: Record<string, { id: string; cost?: { input: number; output: number; cache_read?: number; cache_write?: number } }> }>) {
         for (const [modelId, model] of Object.entries(provider.models ?? {})) {
@@ -130,9 +130,9 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
         }
       }
       debug.log("telemetry.model_rates_loaded", { count: telemetryCtx.modelRates.size });
-    } catch {
+    }).catch(() => {
       // non-critical: rates will still be populated per-turn via system.transform
-    }
+    });
   }
 
   async function buildSummaryIfNeeded(
