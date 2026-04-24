@@ -1,6 +1,6 @@
 {
   "name": "opencode-claude-bridge",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "OpenCode plugin to resume Claude Code sessions inside OpenCode without losing context.",
   "type": "module",
   "main": "./dist/index.js",

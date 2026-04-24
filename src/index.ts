@@ -113,6 +113,28 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
     ? createTelemetryContext(telemetryConfig)
     : null;
 
+  if (telemetryCtx) {
+    try {
+      const result = await pluginInput.client.provider.list();
+      const providers = (result as { data?: { all?: unknown[] } }).data?.all ?? [];
+      for (const provider of providers as Array<{ models?: Record<string, { id: string; cost?: { input: number; output: number; cache_read?: number; cache_write?: number } }> }>) {
+        for (const [modelId, model] of Object.entries(provider.models ?? {})) {
+          if (model.cost) {
+            setModelRates(telemetryCtx, modelId, {
+              input: model.cost.input,
+              output: model.cost.output,
+              cache_read: model.cost.cache_read ?? 0,
+              cache_write: model.cost.cache_write ?? 0,
+            });
+          }
+        }
+      }
+      debug.log("telemetry.model_rates_loaded", { count: telemetryCtx.modelRates.size });
+    } catch {
+      // non-critical: rates will still be populated per-turn via system.transform
+    }
+  }
+
   async function buildSummaryIfNeeded(
     parsed: ParsedClaudeSession,
     transcriptPath: string,
