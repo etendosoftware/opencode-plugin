@@ -37,4 +37,21 @@ describe("SessionTracker", () => {
     const tracker = new SessionTracker();
     expect(tracker.get("unknown")).toBeUndefined();
   });
+
+  it("hasProcessed returns false for unknown message IDs", () => {
+    const tracker = new SessionTracker();
+    expect(tracker.hasProcessed("msg-1")).toBe(false);
+  });
+
+  it("hasProcessed returns true after markProcessed", () => {
+    const tracker = new SessionTracker();
+    tracker.markProcessed("msg-1");
+    expect(tracker.hasProcessed("msg-1")).toBe(true);
+  });
+
+  it("markProcessed does not affect other message IDs", () => {
+    const tracker = new SessionTracker();
+    tracker.markProcessed("msg-1");
+    expect(tracker.hasProcessed("msg-2")).toBe(false);
+  });
 });

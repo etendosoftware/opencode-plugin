@@ -12,7 +12,7 @@ import { createDebugLogger } from "./state/debug-log.js";
 import { createSummaryCache } from "./state/summary-cache.js";
 import type { ExtractedMessage, ParsedClaudeSession } from "./claude/types.js";
 import { loadTelemetryConfig } from "./telemetry/config.js";
-import { createTelemetryContext, onMessageCompleted, onToolUsed } from "./telemetry/events.js";
+import { createTelemetryContext, onMessageCompleted, onToolUsed, setModelRates } from "./telemetry/events.js";
 import type { TelemetryContext } from "./telemetry/events.js";
 
 const DEFAULT_MESSAGE_LIMIT = 40;
@@ -163,6 +163,15 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
     },
 
     "experimental.chat.system.transform": async (input, output) => {
+      if (telemetryCtx && input.model?.id && input.model?.cost) {
+        setModelRates(telemetryCtx, input.model.id, {
+          input: input.model.cost.input,
+          output: input.model.cost.output,
+          cache_read: input.model.cost.cache?.read ?? 0,
+          cache_write: input.model.cost.cache?.write ?? 0,
+        });
+      }
+
       if (!input.sessionID) {
         debug.log("system.transform.skip", { reason: "no sessionID" });
         return;

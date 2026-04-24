@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
-import { modelFamily, buildPayload, onMessageCompleted, onToolUsed, createTelemetryContext } from "../events.js";
+import { modelFamily, buildPayload, onMessageCompleted, onToolUsed, createTelemetryContext, setModelRates } from "../events.js";
 import { ZERO_TOTALS } from "../tracker.js";
 import type { TelemetryConfig } from "../config.js";
 import type { TokenDelta } from "../tracker.js";
@@ -19,7 +19,7 @@ const mockConfig: TelemetryConfig = {
   cwd: "/home/user/project",
 };
 
-function makeAssistantEvent(sessionID: string, modelID: string, tokens = { input: 100, output: 50, reasoning: 0, cache: { read: 5, write: 10 } }, cost = 0.002) {
+function makeAssistantEvent(sessionID: string, modelID: string, tokens = { input: 100, output: 50, reasoning: 0, cache: { read: 5, write: 10 } }, cost = 0.002, id = "msg-1") {
   return {
     type: "message.updated" as const,
     properties: {
@@ -28,7 +28,7 @@ function makeAssistantEvent(sessionID: string, modelID: string, tokens = { input
         role: "assistant" as const,
         sessionID,
         modelID,
-        id: "msg-1",
+        id,
         parentID: "msg-0",
         providerID: "anthropic",
         mode: "build",
@@ -118,7 +118,7 @@ describe("onMessageCompleted", () => {
     await onMessageCompleted(makeAssistantEvent("sess-existing", "claude-sonnet-4-6"), ctx);
     vi.mocked(sendEvent).mockClear();
 
-    await onMessageCompleted(makeAssistantEvent("sess-existing", "claude-sonnet-4-6"), ctx);
+    await onMessageCompleted(makeAssistantEvent("sess-existing", "claude-sonnet-4-6", undefined, undefined, "msg-2"), ctx);
     expect(vi.mocked(sendEvent)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(sendEvent).mock.calls[0][0].event).toBe("opencode_turn");
   });
@@ -137,6 +137,38 @@ describe("onMessageCompleted", () => {
     const ctx = createTelemetryContext(mockConfig);
     await onMessageCompleted({ type: "session.status", properties: { sessionID: "s", status: { type: "idle" } } }, ctx);
     expect(vi.mocked(sendEvent)).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates: same message ID processed twice fires events only once", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    const event = makeAssistantEvent("sess-dedup", "claude-sonnet-4-6");
+    await onMessageCompleted(event, ctx);
+    vi.mocked(sendEvent).mockClear();
+
+    await onMessageCompleted(event, ctx);
+    expect(vi.mocked(sendEvent)).not.toHaveBeenCalled();
+  });
+
+  it("uses fallback cost calculation when msg.cost is 0 and model rates are set", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    setModelRates(ctx, "gpt-5.4", { input: 10, output: 30, cache_read: 1, cache_write: 5 });
+    // tokens: input=100, output=50, cache.write=10, cache.read=5, cost=0 (OpenAI model)
+    const event = makeAssistantEvent("sess-cost", "gpt-5.4", { input: 100, output: 50, reasoning: 0, cache: { read: 5, write: 10 } }, 0);
+    await onMessageCompleted(event, ctx);
+
+    const turnCall = vi.mocked(sendEvent).mock.calls.find(c => c[0].event === "opencode_turn");
+    expect(turnCall).toBeDefined();
+    // cost = (100/1M)*10 + (50/1M)*30 + (10/1M)*5 + (5/1M)*1 = 0.001 + 0.0015 + 0.00005 + 0.000005 = 0.002555
+    expect(turnCall![0].cost_usd).toBeCloseTo(0.002555, 6);
+  });
+
+  it("keeps cost_usd as 0 when msg.cost is 0 and no model rates are available", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    const event = makeAssistantEvent("sess-no-rates", "gpt-unknown", { input: 100, output: 50, reasoning: 0, cache: { read: 5, write: 10 } }, 0);
+    await onMessageCompleted(event, ctx);
+
+    const turnCall = vi.mocked(sendEvent).mock.calls.find(c => c[0].event === "opencode_turn");
+    expect(turnCall![0].cost_usd).toBe(0);
   });
 });
 

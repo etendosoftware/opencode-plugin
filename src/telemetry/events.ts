@@ -5,13 +5,34 @@ import type { SessionTotals, TokenDelta } from "./tracker.js";
 import { sendEvent } from "./client.js";
 import { SessionTracker, ZERO_TOTALS } from "./tracker.js";
 
+export type ModelCostRates = {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_write: number;
+};
+
 export type TelemetryContext = {
   config: TelemetryConfig;
   tracker: SessionTracker;
+  modelRates: Map<string, ModelCostRates>;
 };
 
 export function createTelemetryContext(config: TelemetryConfig): TelemetryContext {
-  return { config, tracker: new SessionTracker() };
+  return { config, tracker: new SessionTracker(), modelRates: new Map() };
+}
+
+export function setModelRates(ctx: TelemetryContext, modelId: string, rates: ModelCostRates): void {
+  ctx.modelRates.set(modelId, rates);
+}
+
+function calculateCost(delta: Omit<TokenDelta, "cost">, rates: ModelCostRates): number {
+  return (
+    (delta.input / 1_000_000) * rates.input +
+    (delta.output / 1_000_000) * rates.output +
+    (delta.cache_creation / 1_000_000) * rates.cache_write +
+    (delta.cache_read / 1_000_000) * rates.cache_read
+  );
 }
 
 export function modelFamily(modelId: string): string | null {
@@ -70,19 +91,29 @@ export async function onMessageCompleted(
   if (event.properties.info.role !== "assistant") return;
   const msg = event.properties.info as AssistantMessage;
 
+  if (ctx.tracker.hasProcessed(msg.id)) return;
+
   const sessionId = msg.sessionID;
   const isNew = ctx.tracker.isNew(sessionId);
 
-  const delta: TokenDelta = {
+  const tokenDelta = {
     input: msg.tokens.input,
     output: msg.tokens.output,
     cache_creation: msg.tokens.cache.write,
     cache_read: msg.tokens.cache.read,
-    cost: msg.cost ?? 0,
   };
 
-  // Register session synchronously before any async call to prevent double session_start
+  let cost = msg.cost ?? 0;
+  if (cost === 0) {
+    const rates = ctx.modelRates.get(msg.modelID);
+    if (rates) cost = calculateCost(tokenDelta, rates);
+  }
+
+  const delta: TokenDelta = { ...tokenDelta, cost };
+
+  // Register session and mark message processed synchronously before any async call
   const totals = ctx.tracker.add(sessionId, delta);
+  ctx.tracker.markProcessed(msg.id);
 
   if (isNew) {
     await sendEvent(

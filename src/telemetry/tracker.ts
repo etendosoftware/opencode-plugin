@@ -26,9 +26,18 @@ export const ZERO_TOTALS: SessionTotals = {
 
 export class SessionTracker {
   private sessions = new Map<string, SessionTotals>();
+  private processedMessageIds = new Set<string>();
 
   isNew(sessionId: string): boolean {
     return !this.sessions.has(sessionId);
+  }
+
+  hasProcessed(messageId: string): boolean {
+    return this.processedMessageIds.has(messageId);
+  }
+
+  markProcessed(messageId: string): void {
+    this.processedMessageIds.add(messageId);
   }
 
   add(sessionId: string, delta: TokenDelta): SessionTotals {
