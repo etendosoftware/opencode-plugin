@@ -24,14 +24,17 @@ There is also an experimental `experimental.chat.messages.transform` hook gated 
 
 ```
 src/
-├── index.ts                  # Plugin entry: hooks, tool registration
+├── index.ts                  # Plugin entry: hooks, tool registration, summarizer wiring
 ├── claude/
 │   ├── sessions.ts           # Locate Claude transcripts (latest / by ID)
 │   ├── parse-jsonl.ts        # Parse transcript, extract messages + tool pairs, detect language
 │   ├── format-context.ts     # Render parsed session as conversational system block
+│   ├── summarize.ts          # LLM summary of older messages via OpenCode SDK client
 │   └── types.ts              # Shared types
 └── state/
-    └── context-store.ts      # Disk-backed Map<openCodeSessionID, StoredContext>
+    ├── context-store.ts      # Disk-backed Map<openCodeSessionID, StoredContext>
+    ├── summary-cache.ts      # On-disk cache keyed by sessionId+mtime+olderCount
+    └── debug-log.ts          # Optional event log (OPENCODE_CLAUDE_BRIDGE_DEBUG=1)
 ```
 
 Build output lives in `dist/`. `opencode.json` points to `./dist/index.js`.
@@ -42,6 +45,7 @@ Build output lives in `dist/`. `opencode.json` points to `./dist/index.js`.
 - **Tool calls are visible.** `tool_use` and `tool_result` from the Claude transcript get paired by ID and rendered as `[ran Tool: args] → result`. Previously they were invisible, losing all context about what Claude actually ran.
 - **Language continuity.** The parser runs a heuristic on short user messages (stripped of shell output, `<local-command-*>` tags, JWT-like blobs) and emits `es`/`en`/`mixed`. The system block tells the model which language to continue in.
 - **Persistence is project-scoped.** State lives under the current workspace's `.opencode/`, not a global dir. Entries older than 30 days are pruned on plugin init.
+- **LLM summary for older messages.** Messages beyond the last 40 are summarized using the active OpenCode model (`client.session.create/prompt/delete`). Result cached in `.opencode/.claude-bridge-cache/<sessionId>-<mtime>-<olderCount>.md` — regenerated only when the transcript changes. Disable with `OPENCODE_CLAUDE_BRIDGE_SUMMARY=0`.
 
 ## Development
 
@@ -69,6 +73,31 @@ console.log(formatImportedContext(parsed));
 EOF
 ```
 
+## Releasing a new version
+
+1. Build and verify:
+   ```bash
+   npm run build
+   ```
+2. Bump version (choose `patch` / `minor` / `major`):
+   ```bash
+   npm version minor --no-git-tag-version
+   ```
+3. Commit everything — source changes + `package.json` bump — in one commit:
+   ```bash
+   git add -A
+   git commit -m "vX.Y.Z: <one-line summary of what changed>"
+   ```
+4. Tag and push:
+   ```bash
+   git tag vX.Y.Z
+   git push git@github-facu:etendosoftware/opencode-plugin.git main --tags
+   ```
+
+After tagging, users on the pinned form (`#vX.Y.Z`) stay on the old version until they explicitly upgrade. Users on the bare URL get the latest on next `npm update -g`.
+
+Use `patch` for bug fixes, `minor` for new features or behavior changes, `major` for breaking changes to the plugin API or `opencode.json` format.
+
 ## Things to avoid
 
 - **Do not widen the message limit blindly.** 40 messages with tool pairs already lands around 7K tokens. Adding more without a summarization step will blow prompt caches and cost.
@@ -78,7 +107,6 @@ EOF
 
 ## What's not done yet
 
-- LLM-generated structured summary (currently the transcript is truncated, not summarized).
 - Live sync when the Claude `.jsonl` grows during an active OpenCode session.
 - Auto-import trigger on first message in a fresh session.
 - Semantic retrieval over all messages instead of last-N truncation.

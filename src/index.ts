@@ -2,12 +2,15 @@ import path from "node:path";
 import { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
 import type { Message, Part } from "@opencode-ai/sdk";
+import { stat } from "node:fs/promises";
 import { formatImportedContext } from "./claude/format-context.js";
 import { parseClaudeTranscript } from "./claude/parse-jsonl.js";
 import { resolveLatestSession, resolveSessionById } from "./claude/sessions.js";
+import { summarizeOlderMessages } from "./claude/summarize.js";
 import { createContextStore } from "./state/context-store.js";
 import { createDebugLogger } from "./state/debug-log.js";
-import type { ExtractedMessage } from "./claude/types.js";
+import { createSummaryCache } from "./state/summary-cache.js";
+import type { ExtractedMessage, ParsedClaudeSession } from "./claude/types.js";
 
 const DEFAULT_MESSAGE_LIMIT = 40;
 
@@ -95,10 +98,55 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
     ? pluginInput.worktree
     : pluginInput.directory;
   const store = await createContextStore(workspaceRoot);
+  const summaryCache = await createSummaryCache(workspaceRoot);
   const replayMessages = process.env.OPENCODE_CLAUDE_BRIDGE_REPLAY === "1";
+  const summaryDisabled = process.env.OPENCODE_CLAUDE_BRIDGE_SUMMARY === "0";
   const debug = createDebugLogger(workspaceRoot);
 
-  debug.log("plugin.init", { workspaceRoot, replayMessages });
+  debug.log("plugin.init", { workspaceRoot, replayMessages, summaryDisabled });
+
+  async function buildSummaryIfNeeded(
+    parsed: ParsedClaudeSession,
+    transcriptPath: string,
+    directory: string,
+  ): Promise<string | undefined> {
+    if (summaryDisabled) return undefined;
+    if (parsed.olderMessages.length === 0) return undefined;
+
+    let mtimeMs = 0;
+    try {
+      const s = await stat(transcriptPath);
+      mtimeMs = s.mtimeMs;
+    } catch {
+      return undefined;
+    }
+
+    const key = {
+      sessionId: parsed.session.sessionId,
+      transcriptMtimeMs: mtimeMs,
+      olderCount: parsed.olderMessages.length,
+    };
+
+    const cached = await summaryCache.get(key);
+    if (cached) {
+      debug.log("summary.cache_hit", { sessionId: key.sessionId, olderCount: key.olderCount });
+      return cached;
+    }
+
+    debug.log("summary.generating", { sessionId: key.sessionId, olderCount: key.olderCount });
+    const generated = await summarizeOlderMessages(parsed, {
+      client: pluginInput.client,
+      directory,
+      onError: (err, phase) => debug.log("summary.error", { phase, message: err instanceof Error ? err.message : String(err) }),
+    });
+    if (generated) {
+      await summaryCache.set(key, generated);
+      debug.log("summary.generated", { sessionId: key.sessionId, chars: generated.length });
+    } else {
+      debug.log("summary.skipped", { sessionId: key.sessionId, reason: "no text from model" });
+    }
+    return generated;
+  }
 
   return {
     "experimental.chat.system.transform": async (input, output) => {
@@ -184,8 +232,9 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
           }
 
           const parsed = await parseClaudeTranscript(session, args.messageLimit ?? DEFAULT_MESSAGE_LIMIT);
-          const importedContext = formatImportedContext(parsed, "full");
-          const importedContextShort = formatImportedContext(parsed, "metadata-only");
+          const summary = await buildSummaryIfNeeded(parsed, session.transcriptPath, projectPath);
+          const importedContext = formatImportedContext(parsed, "full", { summary });
+          const importedContextShort = formatImportedContext(parsed, "metadata-only", { summary });
           await store.save(context.sessionID, {
             importedContext,
             importedContextShort,
@@ -198,6 +247,8 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
             claudeSessionID: session.sessionId,
             totalMessages: parsed.totalMessageCount,
             loadedMessages: parsed.recentMessages.length,
+            olderMessages: parsed.olderMessages.length,
+            summarized: !!summary,
           });
           context.metadata({
             title: "Imported Claude session",
@@ -230,8 +281,12 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
           }
 
           const parsed = await parseClaudeTranscript(session, args.messageLimit ?? DEFAULT_MESSAGE_LIMIT);
-          const importedContext = formatImportedContext(parsed, "full");
-          const importedContextShort = formatImportedContext(parsed, "metadata-only");
+          const directoryForSummary = context.worktree && context.worktree !== "/"
+            ? context.worktree
+            : context.directory;
+          const summary = await buildSummaryIfNeeded(parsed, session.transcriptPath, directoryForSummary);
+          const importedContext = formatImportedContext(parsed, "full", { summary });
+          const importedContextShort = formatImportedContext(parsed, "metadata-only", { summary });
           await store.save(context.sessionID, {
             importedContext,
             importedContextShort,
@@ -244,6 +299,8 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
             claudeSessionID: session.sessionId,
             totalMessages: parsed.totalMessageCount,
             loadedMessages: parsed.recentMessages.length,
+            olderMessages: parsed.olderMessages.length,
+            summarized: !!summary,
           });
           context.metadata({
             title: "Imported Claude session by ID",

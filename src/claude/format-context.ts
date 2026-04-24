@@ -15,7 +15,15 @@ function renderTurn(message: ExtractedMessage, trimTo: number): string[] {
 
 export type FormatMode = "full" | "metadata-only";
 
-export function formatImportedContext(parsed: ParsedClaudeSession, mode: FormatMode = "full"): string {
+export type FormatOptions = {
+  summary?: string;
+};
+
+export function formatImportedContext(
+  parsed: ParsedClaudeSession,
+  mode: FormatMode = "full",
+  options: FormatOptions = {},
+): string {
   const displayProjectPath = parsed.session.projectPath.startsWith("unknown (")
     ? (parsed.cwd ?? parsed.session.projectPath)
     : parsed.session.projectPath;
@@ -56,32 +64,26 @@ export function formatImportedContext(parsed: ParsedClaudeSession, mode: FormatM
   }
   lines.push("");
 
-  if (parsed.firstUserPrompt) {
+  if (!options.summary && parsed.firstUserPrompt) {
     lines.push("## What you originally asked me");
     lines.push(trimBlock(parsed.firstUserPrompt, 2000));
     lines.push("");
   }
 
-  if (parsed.detectedSkills.length > 0 || parsed.detectedMcpServers.length > 0) {
-    lines.push("## Tools I had access to in the Claude session");
-    if (parsed.detectedSkills.length > 0) {
-      lines.push(`- Skills: ${parsed.detectedSkills.join(", ")}`);
-    }
-    if (parsed.detectedMcpServers.length > 0) {
-      lines.push(`- MCP servers: ${parsed.detectedMcpServers.join(", ")}`);
-    }
-    lines.push("");
-  }
-
   if (mode === "full") {
-    if (parsed.keyUserMessages.length > 0) {
+    if (options.summary && parsed.olderMessages.length > 0) {
+      const summaryBody = options.summary.trim().replace(/^#+[^\n]*\n+/, "");
+      lines.push(`## What happened earlier in our conversation (summary of ${parsed.olderMessages.length} prior messages)`);
+      lines.push(summaryBody);
+      lines.push("");
+    } else if (parsed.keyUserMessages.length > 0) {
       lines.push("## Key things you told me along the way");
       for (const message of parsed.keyUserMessages) {
         lines.push(...renderTurn(message, 3000));
       }
     }
 
-    if (parsed.openingMessages.length > 0) {
+    if (!options.summary && parsed.openingMessages.length > 0) {
       lines.push("## How our conversation began");
       for (const message of parsed.openingMessages) {
         lines.push(...renderTurn(message, 2500));

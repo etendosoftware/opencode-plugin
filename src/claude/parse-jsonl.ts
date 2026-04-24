@@ -304,7 +304,11 @@ export async function parseClaudeTranscript(
   }
 
   const pairedMessages = pairToolsWithResults(messages);
-  const recentMessages = pairedMessages.slice(-Math.max(messageLimit, 1));
+  const limit = Math.max(messageLimit, 1);
+  const recentMessages = pairedMessages.slice(-limit);
+  const olderMessages = pairedMessages.length > limit
+    ? pairedMessages.slice(0, pairedMessages.length - limit)
+    : [];
   const openingMessages = pairedMessages.slice(0, Math.min(8, pairedMessages.length));
   const keyUserMessages = selectKeyUserMessages(pairedMessages);
   const detectedLanguage = detectLanguage(pairedMessages);
@@ -328,6 +332,7 @@ export async function parseClaudeTranscript(
     detectedSkills,
     detectedMcpServers,
     recentMessages,
+    olderMessages,
     detectedLanguage,
   };
 }

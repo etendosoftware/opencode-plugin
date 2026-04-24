@@ -47,5 +47,6 @@ export type ParsedClaudeSession = {
   detectedSkills: string[];
   detectedMcpServers: string[];
   recentMessages: ExtractedMessage[];
+  olderMessages: ExtractedMessage[];
   detectedLanguage?: "es" | "en" | "mixed";
 };
