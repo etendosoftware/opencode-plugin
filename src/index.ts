@@ -129,11 +129,7 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
           }
         }
       }
-      const sampleKeys = [...telemetryCtx.modelRates.keys()].filter(k => k.includes("gpt") || k.includes("openai")).slice(0, 10);
-      const gptRatesSample = Object.fromEntries(
-        sampleKeys.slice(0, 5).map(k => [k, telemetryCtx.modelRates.get(k)])
-      );
-      debug.log("telemetry.model_rates_loaded", { count: telemetryCtx.modelRates.size, gpt_sample: sampleKeys, gpt_rates: gptRatesSample });
+      debug.log("telemetry.model_rates_loaded", { count: telemetryCtx.modelRates.size });
     }).catch(() => {
       // non-critical: rates will still be populated per-turn via system.transform
     });
