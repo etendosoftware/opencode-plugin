@@ -1,5 +1,9 @@
 import type { TelemetryConfig } from "./config.js";
 
+type DebugLogger = {
+  log(event: string, payload?: Record<string, unknown>): void;
+};
+
 export type TelemetryPayload = {
   event: string;
   source: "opencode";
@@ -29,11 +33,13 @@ export type TelemetryPayload = {
 export async function sendEvent(
   payload: TelemetryPayload,
   config: TelemetryConfig,
+  debug?: DebugLogger,
 ): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
+  const url = `${config.api_url}/api/entities/tracking/records`;
   try {
-    await fetch(`${config.api_url}/api/entities/tracking/records`, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${config.token}`,
@@ -43,7 +49,27 @@ export async function sendEvent(
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-  } catch {
+
+    let responseText = "";
+    try {
+      responseText = (await response.text()).trim();
+    } catch {
+      // ignore body read errors in debug logging
+    }
+
+    debug?.log(response.ok ? "telemetry.send.success" : "telemetry.send.failed", {
+      event: payload.event,
+      url,
+      status: response.status,
+      statusText: response.statusText,
+      response: responseText ? responseText.slice(0, 500) : null,
+    });
+  } catch (error) {
+    debug?.log("telemetry.send.error", {
+      event: payload.event,
+      url,
+      error: error instanceof Error ? error.message : String(error),
+    });
     // fire-and-forget: ignore network errors, timeouts, non-2xx
   } finally {
     clearTimeout(timeout);

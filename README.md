@@ -27,7 +27,7 @@ OpenCode descarga el plugin desde npm automáticamente al arrancar. No hace falt
 
 Cuando el plugin inicia, sincroniza sus `commands` y `skills` incluidos en el paquete hacia tu config global de OpenCode en `~/.config/opencode/commands` y `~/.config/opencode/skills`. Eso deja disponibles `/resume-claude-last`, `/resume-claude-session` y sus skills asociadas sin pasos manuales extra.
 
-Para fijar una versión específica (recomendado): `"opencode-claude-bridge-plugin@1.0.2"`.
+Para fijar una versión específica (recomendado): `"opencode-claude-bridge-plugin@1.0.3"`.
 
 ### Desarrollo local
 

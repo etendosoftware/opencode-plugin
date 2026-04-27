@@ -110,9 +110,9 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
   debug.log("plugin.init", { workspaceRoot, replayMessages, summaryDisabled });
   await installGlobalOpencodeAssets(debug);
 
-  const telemetryConfig = await loadTelemetryConfig(workspaceRoot);
+  const telemetryConfig = await loadTelemetryConfig(workspaceRoot, debug);
   const telemetryCtx: TelemetryContext | null = telemetryConfig
-    ? createTelemetryContext(telemetryConfig)
+    ? createTelemetryContext(telemetryConfig, debug)
     : null;
 
   if (telemetryCtx) {

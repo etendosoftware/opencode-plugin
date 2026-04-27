@@ -16,10 +16,14 @@ export type TelemetryContext = {
   config: TelemetryConfig;
   tracker: SessionTracker;
   modelRates: Map<string, ModelCostRates>;
+  debug?: { log(event: string, payload?: Record<string, unknown>): void };
 };
 
-export function createTelemetryContext(config: TelemetryConfig): TelemetryContext {
-  return { config, tracker: new SessionTracker(), modelRates: new Map() };
+export function createTelemetryContext(
+  config: TelemetryConfig,
+  debug?: { log(event: string, payload?: Record<string, unknown>): void },
+): TelemetryContext {
+  return { config, tracker: new SessionTracker(), modelRates: new Map(), debug };
 }
 
 export function setModelRates(ctx: TelemetryContext, modelId: string, rates: ModelCostRates): void {
@@ -133,12 +137,14 @@ export async function onMessageCompleted(
     await sendEvent(
       buildPayload("opencode_session_start", sessionId, msg.modelID, ZERO_DELTA, { ...ZERO_TOTALS }, null, ctx.config),
       ctx.config,
+      ctx.debug,
     );
   }
 
   await sendEvent(
     buildPayload("opencode_turn", sessionId, msg.modelID, delta, totals, null, ctx.config),
     ctx.config,
+    ctx.debug,
   );
 }
 
@@ -151,5 +157,6 @@ export async function onToolUsed(
   await sendEvent(
     buildPayload("opencode_tool_use", sessionId, "", ZERO_DELTA, totals, detail, ctx.config),
     ctx.config,
+    ctx.debug,
   );
 }
