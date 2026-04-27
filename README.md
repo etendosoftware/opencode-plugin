@@ -25,7 +25,9 @@ Agregá el plugin a tu config global de OpenCode (`~/.config/opencode/opencode.j
 
 OpenCode descarga el plugin desde npm automáticamente al arrancar. No hace falta ningún `npm install`.
 
-Para fijar una versión específica (recomendado): `"opencode-claude-bridge-plugin@1.0.1"`.
+Cuando el plugin inicia, sincroniza sus `commands` y `skills` incluidos en el paquete hacia tu config global de OpenCode en `~/.config/opencode/commands` y `~/.config/opencode/skills`. Eso deja disponibles `/resume-claude-last`, `/resume-claude-session` y sus skills asociadas sin pasos manuales extra.
+
+Para fijar una versión específica (recomendado): `"opencode-claude-bridge-plugin@1.0.2"`.
 
 ### Desarrollo local
 
@@ -60,6 +62,8 @@ Retoma una sesión específica por ID. Útil cuando querés volver a algo de hac
 
 Después de ejecutar el comando, OpenCode te muestra cuántos mensajes cargó y el último que te dijo Claude, así sabés desde dónde retomás.
 
+Los archivos globales se mantienen sincronizados con la versión instalada del plugin cada vez que OpenCode lo carga.
+
 ## Qué se importa
 
 El plugin arma un bloque de contexto con tres partes:
@@ -87,4 +91,3 @@ No requiere configuración extra: el plugin lee las credenciales de `~/.fyso/con
 ## Costo
 
 El contexto importado pesa ~5–7K tokens. Con prompt caching habilitado (activo por defecto en OpenCode), el costo real después del primer turno es mínimo — el bloque se cachea y los turnos siguientes solo pagan el cache read. El resumen se genera una sola vez por sesión y se reutiliza.
-

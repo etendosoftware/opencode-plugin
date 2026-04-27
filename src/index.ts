@@ -7,6 +7,7 @@ import { formatImportedContext } from "./claude/format-context.js";
 import { parseClaudeTranscript } from "./claude/parse-jsonl.js";
 import { resolveLatestSession, resolveSessionById } from "./claude/sessions.js";
 import { summarizeOlderMessages } from "./claude/summarize.js";
+import { installGlobalOpencodeAssets } from "./opencode-global-assets.js";
 import { createContextStore } from "./state/context-store.js";
 import { createDebugLogger } from "./state/debug-log.js";
 import { createSummaryCache } from "./state/summary-cache.js";
@@ -107,6 +108,7 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
   const debug = createDebugLogger(workspaceRoot);
 
   debug.log("plugin.init", { workspaceRoot, replayMessages, summaryDisabled });
+  await installGlobalOpencodeAssets(debug);
 
   const telemetryConfig = await loadTelemetryConfig(workspaceRoot);
   const telemetryCtx: TelemetryContext | null = telemetryConfig
