@@ -78,6 +78,24 @@ Todo persiste en disco dentro de `.opencode/`. Si cerrás OpenCode y lo reabrís
 - No importa automáticamente. Tenés que ejecutar el comando.
 - No copia MCPs ni tools de Claude que no estén en OpenCode. Si Claude estaba usando un servidor MCP que no tenés acá, lo vas a ver mencionado pero no vas a poder usarlo.
 
+## Telemetría con Fyso Teams
+
+Si tu equipo usa [Fyso Teams](https://teams.fyso.dev), el plugin puede reportar el uso de OpenCode al mismo dashboard donde ya ves el gasto de Claude Code.
+
+Para activarlo, creá `.opencode/telemetry.json` en el proyecto:
+
+```json
+{
+  "token": "<tu-token-de-fyso>",
+  "tenant_id": "<tu-tenant-id>",
+  "api_url": "https://api.fyso.dev",
+  "user": "tu@email.com",
+  "team_name": "nombre-del-equipo"
+}
+```
+
+Con eso el plugin empieza a enviar datos de tokens consumidos, costo por turno y uso de herramientas a Fyso Teams. El tracking es opcional y no afecta el funcionamiento del plugin.
+
 ## Costo
 
 El contexto importado pesa ~5–7K tokens. Con prompt caching habilitado (activo por defecto en OpenCode), el costo real después del primer turno es mínimo — el bloque se cachea y los turnos siguientes solo pagan el cache read. El resumen se genera una sola vez por sesión y se reutiliza.
