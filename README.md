@@ -16,13 +16,11 @@ Abrís OpenCode en un proyecto donde ya estuviste laburando con Claude. Ejecutá
 
 El plugin se instala **a nivel global** y queda disponible en todos tus proyectos de OpenCode.
 
-### Recomendado: instalar desde GitHub
+### Recomendado: instalar desde npm
 
 ```bash
-npm install -g github:etendosoftware/opencode-plugin
+npm install -g opencode-claude-bridge-plugin
 ```
-
-El build se genera automáticamente durante la instalación (`prepare` script).
 
 Después agregalo a tu config global de OpenCode (`~/.config/opencode/opencode.json`):
 
