@@ -91,6 +91,10 @@ export async function onMessageCompleted(
   if (event.properties.info.role !== "assistant") return;
   const msg = event.properties.info as AssistantMessage;
 
+  // message.updated fires multiple times per message (during streaming and after completion).
+  // Only process the final event where time.completed is set — that's when token counts are available.
+  if (!(msg as unknown as { time?: { completed?: number } }).time?.completed) return;
+
   if (ctx.tracker.hasProcessed(msg.id)) return;
 
   const sessionId = msg.sessionID;

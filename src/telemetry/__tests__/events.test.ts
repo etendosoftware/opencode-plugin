@@ -33,7 +33,7 @@ function makeAssistantEvent(sessionID: string, modelID: string, tokens = { input
         providerID: "anthropic",
         mode: "build",
         path: { cwd: "/", root: "/" },
-        time: { created: Date.now() },
+        time: { created: Date.now() - 500, completed: Date.now() },
         summary: false,
         cost,
         tokens,
