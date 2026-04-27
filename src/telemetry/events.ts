@@ -100,17 +100,31 @@ export async function onMessageCompleted(
   const sessionId = msg.sessionID;
   const isNew = ctx.tracker.isNew(sessionId);
 
+  // msg.tokens is the cumulative session total, not a per-turn delta.
+  // Subtract previous session totals to get the actual per-turn usage.
+  const prevTotals = ctx.tracker.get(sessionId) ?? { ...ZERO_TOTALS };
+
   const tokenDelta = {
-    input: msg.tokens.input,
-    output: msg.tokens.output,
-    cache_creation: msg.tokens.cache.write,
-    cache_read: msg.tokens.cache.read,
+    input: Math.max(0, msg.tokens.input - prevTotals.input_tokens),
+    output: Math.max(0, msg.tokens.output - prevTotals.output_tokens),
+    cache_creation: Math.max(0, msg.tokens.cache.write - prevTotals.cache_creation_tokens),
+    cache_read: Math.max(0, msg.tokens.cache.read - prevTotals.cache_read_tokens),
   };
 
+  // msg.cost is also cumulative — compute per-turn cost as the delta.
   let cost = msg.cost ?? 0;
+  if (cost > 0) {
+    cost = Math.max(0, cost - prevTotals.cost_usd);
+  }
   if (cost === 0) {
     const rates = ctx.modelRates.get(msg.modelID);
-    if (rates) cost = calculateCost(tokenDelta, rates);
+    if (rates) {
+      cost = calculateCost(tokenDelta, rates);
+    } else {
+      // Log missing rates so we can diagnose model ID mismatches
+      const knownIds = [...ctx.modelRates.keys()].filter(k => k.includes(msg.modelID.split("-")[0])).slice(0, 5);
+      console.error(`[fyso-telemetry] no rates for modelID="${msg.modelID}" similar_keys=${JSON.stringify(knownIds)}`);
+    }
   }
 
   const delta: TokenDelta = { ...tokenDelta, cost };

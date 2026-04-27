@@ -123,6 +123,20 @@ describe("onMessageCompleted", () => {
     expect(vi.mocked(sendEvent).mock.calls[0][0].event).toBe("opencode_turn");
   });
 
+  it("reports per-turn delta tokens when msg.tokens is cumulative", async () => {
+    const ctx = createTelemetryContext(mockConfig);
+    // Turn 1: cumulative = 100 input, 50 output
+    await onMessageCompleted(makeAssistantEvent("sess-delta", "claude-sonnet-4-6", { input: 100, output: 50, reasoning: 0, cache: { read: 5, write: 10 } }, 0.002, "msg-t1"), ctx);
+    vi.mocked(sendEvent).mockClear();
+
+    // Turn 2: cumulative = 110 input, 70 output (delta = 10 input, 20 output)
+    await onMessageCompleted(makeAssistantEvent("sess-delta", "claude-sonnet-4-6", { input: 110, output: 70, reasoning: 0, cache: { read: 5, write: 10 } }, 0.003, "msg-t2"), ctx);
+    const turnCall = vi.mocked(sendEvent).mock.calls[0][0];
+    expect(turnCall.input_tokens).toBe(10);
+    expect(turnCall.output_tokens).toBe(20);
+    expect(turnCall.tokens).toBe(30); // only the delta, not 110+70
+  });
+
   it("skips user messages (non-assistant role)", async () => {
     const ctx = createTelemetryContext(mockConfig);
     const userEvent = {
