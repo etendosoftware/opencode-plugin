@@ -130,7 +130,10 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
         }
       }
       const sampleKeys = [...telemetryCtx.modelRates.keys()].filter(k => k.includes("gpt") || k.includes("openai")).slice(0, 10);
-      debug.log("telemetry.model_rates_loaded", { count: telemetryCtx.modelRates.size, gpt_sample: sampleKeys });
+      const gptRatesSample = Object.fromEntries(
+        sampleKeys.slice(0, 5).map(k => [k, telemetryCtx.modelRates.get(k)])
+      );
+      debug.log("telemetry.model_rates_loaded", { count: telemetryCtx.modelRates.size, gpt_sample: sampleKeys, gpt_rates: gptRatesSample });
     }).catch(() => {
       // non-critical: rates will still be populated per-turn via system.transform
     });
@@ -194,12 +197,18 @@ export const ClaudeBridgePlugin: Plugin = async (pluginInput) => {
 
     "experimental.chat.system.transform": async (input, output) => {
       if (telemetryCtx && input.model?.id && input.model?.cost) {
-        setModelRates(telemetryCtx, input.model.id, {
-          input: input.model.cost.input,
-          output: input.model.cost.output,
-          cache_read: input.model.cost.cache?.read ?? 0,
-          cache_write: input.model.cost.cache?.write ?? 0,
-        });
+        const costIn = input.model.cost.input ?? 0;
+        const costOut = input.model.cost.output ?? 0;
+        // Only overwrite rates when system.transform provides non-zero values.
+        // Zero values mean OpenCode doesn't price this model here; provider.list() rates take precedence.
+        if (costIn > 0 || costOut > 0) {
+          setModelRates(telemetryCtx, input.model.id, {
+            input: costIn,
+            output: costOut,
+            cache_read: input.model.cost.cache?.read ?? 0,
+            cache_write: input.model.cost.cache?.write ?? 0,
+          });
+        }
       }
 
       if (!input.sessionID) {

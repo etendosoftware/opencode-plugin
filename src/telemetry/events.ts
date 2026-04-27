@@ -120,11 +120,13 @@ export async function onMessageCompleted(
     const rates = ctx.modelRates.get(msg.modelID);
     if (rates) {
       cost = calculateCost(tokenDelta, rates);
+      console.error(`[fyso-telemetry] cost_calc modelID="${msg.modelID}" delta=${JSON.stringify(tokenDelta)} rates=${JSON.stringify(rates)} result=${cost}`);
     } else {
-      // Log missing rates so we can diagnose model ID mismatches
       const knownIds = [...ctx.modelRates.keys()].filter(k => k.includes(msg.modelID.split("-")[0])).slice(0, 5);
       console.error(`[fyso-telemetry] no rates for modelID="${msg.modelID}" similar_keys=${JSON.stringify(knownIds)}`);
     }
+  } else {
+    console.error(`[fyso-telemetry] using msg.cost modelID="${msg.modelID}" msg.cost=${msg.cost} prevCost=${prevTotals.cost_usd} final=${cost}`);
   }
 
   const delta: TokenDelta = { ...tokenDelta, cost };
