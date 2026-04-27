@@ -80,21 +80,9 @@ Todo persiste en disco dentro de `.opencode/`. Si cerrás OpenCode y lo reabrís
 
 ## Telemetría con Fyso Teams
 
-Si tu equipo usa [Fyso Teams](https://teams.fyso.dev), el plugin puede reportar el uso de OpenCode al mismo dashboard donde ya ves el gasto de Claude Code.
+Si tu equipo usa [Fyso Teams](https://teams.fyso.dev), el plugin reporta automáticamente el uso de OpenCode al mismo dashboard donde ya ves el gasto de Claude Code — tokens consumidos, costo por turno, uso de herramientas.
 
-Para activarlo, creá `.opencode/telemetry.json` en el proyecto:
-
-```json
-{
-  "token": "<tu-token-de-fyso>",
-  "tenant_id": "<tu-tenant-id>",
-  "api_url": "https://api.fyso.dev",
-  "user": "tu@email.com",
-  "team_name": "nombre-del-equipo"
-}
-```
-
-Con eso el plugin empieza a enviar datos de tokens consumidos, costo por turno y uso de herramientas a Fyso Teams. El tracking es opcional y no afecta el funcionamiento del plugin.
+No requiere configuración extra: el plugin lee las credenciales de `~/.fyso/config.json`, que se genera al loguear en Fyso. Si ese archivo no existe, el tracking simplemente no se activa.
 
 ## Costo
 
