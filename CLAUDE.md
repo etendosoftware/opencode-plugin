@@ -31,10 +31,15 @@ src/
 │   ├── format-context.ts     # Render parsed session as conversational system block
 │   ├── summarize.ts          # LLM summary of older messages via OpenCode SDK client
 │   └── types.ts              # Shared types
-└── state/
-    ├── context-store.ts      # Disk-backed Map<openCodeSessionID, StoredContext>
-    ├── summary-cache.ts      # On-disk cache keyed by sessionId+mtime+olderCount
-    └── debug-log.ts          # Optional event log (OPENCODE_CLAUDE_BRIDGE_DEBUG=1)
+├── state/
+│   ├── context-store.ts      # Disk-backed Map<openCodeSessionID, StoredContext>
+│   ├── summary-cache.ts      # On-disk cache keyed by sessionId+mtime+olderCount
+│   └── debug-log.ts          # Optional event log (OPENCODE_CLAUDE_BRIDGE_DEBUG=1)
+└── telemetry/
+    ├── config.ts             # Load telemetry config from .opencode/telemetry.json
+    ├── client.ts             # HTTP POST to Fyso backend
+    ├── events.ts             # Event processing: onMessageCompleted, onToolUsed, buildPayload
+    └── tracker.ts            # Per-session token/cost accumulator (deduplication + delta)
 ```
 
 Build output lives in `dist/`. `opencode.json` points to `./dist/index.js`.
@@ -46,6 +51,16 @@ Build output lives in `dist/`. `opencode.json` points to `./dist/index.js`.
 - **Language continuity.** The parser runs a heuristic on short user messages (stripped of shell output, `<local-command-*>` tags, JWT-like blobs) and emits `es`/`en`/`mixed`. The system block tells the model which language to continue in.
 - **Persistence is project-scoped.** State lives under the current workspace's `.opencode/`, not a global dir. Entries older than 30 days are pruned on plugin init.
 - **LLM summary for older messages.** Messages beyond the last 40 are summarized using the active OpenCode model (`client.session.create/prompt/delete`). Result cached in `.opencode/.claude-bridge-cache/<sessionId>-<mtime>-<olderCount>.md` — regenerated only when the transcript changes. Disable with `OPENCODE_CLAUDE_BRIDGE_SUMMARY=0`.
+
+### Telemetry
+
+Configured via `.opencode/telemetry.json` in the workspace root. When present, the plugin emits `opencode_session_start` and `opencode_turn` events to the Fyso backend on each completed assistant message, plus `opencode_tool_use` when a resume tool runs.
+
+Three non-obvious invariants in `events.ts`:
+
+- **`message.updated` fires multiple times per turn** — during streaming (tokens=0) and again after completion. Only process when `msg.time?.completed` is set; ignore the rest.
+- **`msg.tokens` and `msg.cost` are cumulative session totals**, not per-turn values. Subtract the previous session totals (from `SessionTracker`) to get the actual delta for that turn.
+- **`system.transform` fires before every turn** and passes `input.model.cost`. For models OpenCode doesn't price (e.g. OpenAI via proxy), it passes `{input:0, output:0}`. Only overwrite stored rates when the incoming values are non-zero, otherwise you clobber the rates loaded from `provider.list()` at startup.
 
 ## Development
 
@@ -75,28 +90,35 @@ EOF
 
 ## Releasing a new version
 
-1. Build and verify:
+The plugin is published to npm as `opencode-claude-bridge-plugin`. OpenCode downloads it automatically from the registry — users don't run `npm install`.
+
+1. Build and verify tests pass:
    ```bash
    npm run build
+   npm test
    ```
 2. Bump version (choose `patch` / `minor` / `major`):
    ```bash
-   npm version minor --no-git-tag-version
+   npm version patch --no-git-tag-version
    ```
-3. Commit everything — source changes + `package.json` bump — in one commit:
+3. Publish to npm (requires auth token in `~/.npmrc`):
    ```bash
-   git add -A
-   git commit -m "vX.Y.Z: <one-line summary of what changed>"
+   npm publish --access public
    ```
-4. Tag and push:
+4. Commit and push:
    ```bash
-   git tag vX.Y.Z
-   git push git@github-facu:etendosoftware/opencode-plugin.git main --tags
+   git add package.json package-lock.json
+   git commit -m "chore: bump to vX.Y.Z"
+   git push
    ```
 
-After tagging, users on the pinned form (`#vX.Y.Z`) stay on the old version until they explicitly upgrade. Users on the bare URL get the latest on next `npm update -g`.
+**npm auth:** publishing requires a granular token with read+write access and "bypass 2FA" enabled. Set it with:
+```bash
+npm config set //registry.npmjs.org/:_authToken <token>
+```
+Passing via `NPM_TOKEN` env var doesn't work reliably — use `.npmrc`.
 
-Use `patch` for bug fixes, `minor` for new features or behavior changes, `major` for breaking changes to the plugin API or `opencode.json` format.
+Use `patch` for bug fixes, `minor` for new features or behavior changes, `major` for breaking changes to the plugin API or config format.
 
 ## Things to avoid
 
