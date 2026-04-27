@@ -29,11 +29,11 @@ Después agregalo a tu config global de OpenCode (`~/.config/opencode/opencode.j
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-claude-bridge"]
+  "plugin": ["opencode-claude-bridge-plugin"]
 }
 ```
 
-Para actualizar cuando salga una versión nueva: `npm update -g opencode-claude-bridge`.
+Para actualizar cuando salga una versión nueva: `npm update -g opencode-claude-bridge-plugin`.
 
 ### Alternativa: clonar para desarrollo
 
@@ -51,7 +51,7 @@ npm link
 
 ```json
 {
-  "plugin": ["opencode-claude-bridge"]
+  "plugin": ["opencode-claude-bridge-plugin"]
 }
 ```
 
